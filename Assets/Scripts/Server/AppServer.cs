@@ -69,7 +69,7 @@ public class AppServer : MonoBehaviour
 
     private void StartStream()
     {
-        Observable.EveryUpdate().SampleFrame(5).Subscribe(x =>
+        Observable.IntervalFrame(5).Subscribe(x =>
         {
             Color32[] color_array = web_cam_texture_.GetPixels32();
 
@@ -80,7 +80,9 @@ public class AppServer : MonoBehaviour
             }
 
             byte[] array = SerializeHelper.ObjectToByteArraySerialize(uint_array);
-
+            //Debug.LogFormat("before compress array = {0}", array.Length);
+            array = CompressHelper.Compress(array);
+            //Debug.LogFormat("after compress array = {0}", array.Length);
             wssv_manager_.Broadcast(array);
         }).AddTo(disposables);
     }

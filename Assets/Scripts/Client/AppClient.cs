@@ -8,11 +8,43 @@ using UnityEngine;
 using UnityEngine.UI;
 using WebSocketSharp;
 
+//public static class KBPSCounter
+//{
+//    public static int BufferSize = 1;  // 샘플 수를 바꾸려면 여기를 바꾸는
+//    public static IReadOnlyReactiveProperty<float> Current { get; private set; }
+
+//    static KBPSCounter()
+//    {
+//        Current = Observable.EveryUpdate()
+//            .Select(_ => Time.deltaTime)
+//            .Buffer(BufferSize, 1)
+//            .Select(x =>
+//            {
+//                float total = 0;
+//                float average = 0;
+//                for(int i=0; i<x.Count; ++i)
+//                {
+//                    total += x[i];
+//                }
+//                average = total / x.Count;
+//                Debug.Log(average);
+//                return 1.0f / (average * 0.01f);
+//            })
+//            .ToReadOnlyReactiveProperty();
+//    }
+//}
+
 public class AppClient : MonoBehaviour {
+
+    private static readonly string Data_Streaming_Format_ = "data streaming {0}KB/s";
+    private static readonly string Elapsed_Time_Format_ = "elapsed time {0}";
 
     public Button Button_Connect_;
 
     public Button Button_Request_Stream_;
+
+    public Text Text_KBps_;
+    public Text Text_Elapsed_Time_;
 
     public Transform Plane_;
 
@@ -23,6 +55,8 @@ public class AppClient : MonoBehaviour {
     private Color32[] color_array_;
 
     private Queue<Action> queue_action_;
+
+    private float buffer_size = 0;
 
     public void SendMessage_()
     {
@@ -66,15 +100,6 @@ public class AppClient : MonoBehaviour {
         });
     }
 
-    private void EnQueueStartStream()
-    {
-        queue_action_.Enqueue(()=>
-        {
-            plan_texture_.SetPixels32(color_array_);
-            plan_texture_.Apply();
-        });
-    }
-
     void Awake()
     {
         queue_action_ = new Queue<Action>();
@@ -92,7 +117,18 @@ public class AppClient : MonoBehaviour {
 
         Plane_.GetComponent<Renderer>().material.mainTexture = plan_texture_;
 
-        using (ws = new WebSocket("ws://teamgehem.com:9999/myhome"))
+        Observable.Interval(TimeSpan.FromSeconds(1))
+            .Where(_ => ws.IsAlive && buffer_size > 0)
+            .Subscribe(t =>
+            {
+                buffer_size = buffer_size * 0.001f;
+                //Debug.LogFormat("t = {0}, KBps = {1}", t, );
+                Text_KBps_.text = string.Format(Data_Streaming_Format_, buffer_size);
+                Text_Elapsed_Time_.text = string.Format(Elapsed_Time_Format_, t);
+                buffer_size = 0;
+            });
+
+        using (ws = new WebSocket("ws://127.0.0.1:9999/myhome"))
         {
             ws.OnOpen += (sender, e) =>
             {
@@ -104,14 +140,24 @@ public class AppClient : MonoBehaviour {
             {
                 if (e.IsBinary)
                 {
-                    uint[] uint_array = SerializeHelper.Deserialize<uint[]>(e.RawData);
+                    byte [] raw_data = e.RawData;
+                    buffer_size += raw_data.Length;
+                    //Debug.LogFormat("before decompress array = {0}", raw_data.Length);
+                    raw_data = CompressHelper.Decompress(raw_data);
+                    //Debug.LogFormat("after decompress array = {0}", raw_data.Length);
+                    uint[] uint_array = SerializeHelper.Deserialize<uint[]>(raw_data);
 
                     color_array_ = new Color32[uint_array.Length];
                     for(int i=0; i< uint_array.Length; ++i)
                     {
                         color_array_[i] = ColorConverter.UIntToColor(uint_array[i]);
                     }
-                    EnQueueStartStream();
+
+                    queue_action_.Enqueue(() =>
+                    {
+                        plan_texture_.SetPixels32(color_array_);
+                        plan_texture_.Apply();
+                    });
                 }
                 else if(e.IsText)
                 {
