@@ -132,8 +132,11 @@ public class AppClient : MonoBehaviour {
         {
             ws.OnOpen += (sender, e) =>
             {
-                Debug.Log("client: connect success!");
-                Button_Request_Stream_.interactable = true;
+                queue_action_.Enqueue(() =>
+                {
+                    Debug.Log("client: connect success!");
+                    Button_Request_Stream_.interactable = true;
+                });
             };
 
             ws.OnMessage += (sender, e) =>
@@ -168,7 +171,10 @@ public class AppClient : MonoBehaviour {
 
             ws.OnClose += (sender, e) =>
             {
-                Button_Request_Stream_.interactable = false;
+                queue_action_.Enqueue(() =>
+                {
+                    Button_Request_Stream_.interactable = false;
+                });
             };
         }
 
