@@ -38,7 +38,12 @@ public class ServerMain : MonoBehaviour {
 
         float height = Camera.main.orthographicSize * 2.0f;
         float width = height * Screen.width / Screen.height;
+
+#if !UNITY_EDITOR_WIN
+        Plane_.position = Vector3.zero;
         Plane_.localScale = new Vector3(width * 0.1f, height * 0.1f, 1.0f);
+#endif
+
         WebCamDevice[] device = WebCamTexture.devices;
 
         web_cam_texture_ = new WebCamTexture(320, 240, 15);

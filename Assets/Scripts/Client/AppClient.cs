@@ -45,14 +45,18 @@ public class AppClient : MonoBehaviour {
 
     public Text Text_KBps_;
     public Text Text_Elapsed_Time_;
+    public Text Text_Data_Length_;
 
     public Transform Plane_;
+    public RectTransform Panel_;
 
     private WebSocket ws;
 
     private Texture2D plan_texture_;
 
     private Color32[] color_array_;
+
+    private Queue<Color32[]> queue_colors_;
 
     private Queue<Action> queue_action_;
 
@@ -103,6 +107,7 @@ public class AppClient : MonoBehaviour {
     void Awake()
     {
         queue_action_ = new Queue<Action>();
+        queue_colors_ = new Queue<Color32[]>();
 
         InitializeButton();
     }
@@ -111,7 +116,12 @@ public class AppClient : MonoBehaviour {
 
         float height = Camera.main.orthographicSize * 2.0f;
         float width = height * Screen.width / Screen.height;
+
+#if !UNITY_EDITOR_WIN
+        Plane_.position = Vector3.zero;
         Plane_.localScale = new Vector3(width * 0.1f, height * 0.1f, 1.0f);
+        Panel_.anchoredPosition = new Vector2(0, 40);
+#endif
 
         plan_texture_ = new Texture2D(320, 240, TextureFormat.RGBA32, false);
 
@@ -128,7 +138,7 @@ public class AppClient : MonoBehaviour {
                 buffer_size = 0;
             });
 
-        using (ws = new WebSocket("ws://127.0.0.1:9999/myhome"))
+        using (ws = new WebSocket("ws://teamgehem.com:9999/myhome"))
         {
             ws.OnOpen += (sender, e) =>
             {
@@ -148,19 +158,26 @@ public class AppClient : MonoBehaviour {
                     //Debug.LogFormat("before decompress array = {0}", raw_data.Length);
                     raw_data = CompressHelper.Decompress(raw_data);
                     //Debug.LogFormat("after decompress array = {0}", raw_data.Length);
-                    uint[] uint_array = SerializeHelper.Deserialize<uint[]>(raw_data);
+                    //return;
 
-                    color_array_ = new Color32[uint_array.Length];
-                    for(int i=0; i< uint_array.Length; ++i)
-                    {
-                        color_array_[i] = ColorConverter.UIntToColor(uint_array[i]);
-                    }
+                    //uint[] uint_array = SerializeHelper.Deserialize<uint[]>(raw_data);
 
-                    queue_action_.Enqueue(() =>
-                    {
-                        plan_texture_.SetPixels32(color_array_);
-                        plan_texture_.Apply();
-                    });
+                    color_array_ = MarshalConverter.FromByteArray<Color32>(raw_data);
+                    //color_array_ = new Color32[uint_array.Length];
+
+                    //for (int i=0; i< uint_array.Length; ++i)
+                    //{
+                    //    color_array_[i] = ColorConverter.UIntToColor(uint_array[i]);
+                    //}
+
+                    queue_colors_.Enqueue(color_array_);
+                    //queue_action_.Enqueue((color_array_) =>
+                    //{
+                        //if (queue_colors_.Count > 0)
+                        //{
+
+                        //}
+                    //});
                 }
                 else if(e.IsText)
                 {
@@ -182,11 +199,26 @@ public class AppClient : MonoBehaviour {
             .Where(x => x)
             .Subscribe(_ =>
             {
-                for (; queue_action_.Count > 0;)
-                {
-                    queue_action_.Dequeue()();
-                }
+                queue_action_.Dequeue()();
+            });
+        queue_colors_.ObserveEveryValueChanged(queue => queue.Count)
+            .Where(x => x > 0)
+            .SampleFrame(15)
+            .Subscribe(_ =>
+            {
+                Debug.LogFormat("queue_colors_count = {0}", queue_colors_.Count);
+                plan_texture_.SetPixels32(queue_colors_.Dequeue());
+                plan_texture_.Apply();
             });
 
     }
+
+    //void Update()
+    //{
+    //    for (; queue_action_.Count > 0;)
+    //    {
+    //        queue_action_.Dequeue()();
+    //    }
+    //    plan_texture_.Apply();
+    //}
 }

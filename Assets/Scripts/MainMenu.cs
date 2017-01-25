@@ -36,10 +36,16 @@ public class MainMenu : MonoBehaviour {
             Application.Quit();
         });
 
+#if UNITY_EDITOR_WIN
+        Main_Menu_.SetActive(false);
+        Server_.SetActive(true);
+        Client_.SetActive(true);
+#endif
+
     }
 
-	// Update is called once per frame
-	void Update () {
+    // Update is called once per frame
+    void Update () {
 
 	}
 }

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using LZ4;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -69,21 +70,27 @@ public class AppServer : MonoBehaviour
 
     private void StartStream()
     {
-        Observable.IntervalFrame(5).Subscribe(x =>
+        //Observable.Interval(TimeSpan.FromMilliseconds(70)).Subscribe(x =>
+        Observable.IntervalFrame(15).Subscribe(x =>
         {
+            Debug.LogFormat("x = {0}", x);
+
             Color32[] color_array = web_cam_texture_.GetPixels32();
 
-            uint[] uint_array = new uint[color_array.Length];
-            for (int i = 0; i < color_array.Length; ++i)
-            {
-                uint_array[i] = ColorConverter.ColorToUInt(color_array[i]);
-            }
+            //uint[] uint_array = ColorConverter.ColorArrayToUIntArray(color_array);
+            //byte[] array = SerializeHelper.ObjectToByteArraySerialize(uint_array);
 
-            byte[] array = SerializeHelper.ObjectToByteArraySerialize(uint_array);
+            byte[] another_array = MarshalConverter.ToByteArray<Color32>(color_array);
+            //Debug.LogFormat("before another_array = {0}", another_array.Length);
+
+            another_array = CompressHelper.Compress(another_array);
+           // Debug.LogFormat("after another_array = {0}", another_array.Length);
+
             //Debug.LogFormat("before compress array = {0}", array.Length);
-            array = CompressHelper.Compress(array);
+            //array = CompressHelper.Compress(array);
             //Debug.LogFormat("after compress array = {0}", array.Length);
-            wssv_manager_.Broadcast(array);
+            //wssv_manager_.Broadcast(array);
+            wssv_manager_.Broadcast(another_array);
         }).AddTo(disposables);
     }
 
